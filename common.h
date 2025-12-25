@@ -1,5 +1,7 @@
 #pragma once
-#include <stdarg.h>
+
+// Memory page size of 4 KB
+#define PAGE_SIZE 4096
 
 // Define standard types
 typedef int bool;
