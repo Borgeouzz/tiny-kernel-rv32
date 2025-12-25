@@ -2,17 +2,61 @@
 
 void put_char(char c);
 
-/* print_debug allows to print a debug string.
- * It is used for example in printf to print an error on output
- * if the format is wrong.
+/*########## MEMORY FUNCTIONS ##########*/
+
+/* memset copies the character c to the first n characters of the buffer pointed to. 
+ * It returns a pointer to the first character of the buffer.
  */
-void print_debug(char *str) {
-    while (*str) {
-        put_char(*str);
-        str++;
-    }
+void *memset(void *buf, char c, size_t n) {
+    uint8_t *p = (uint8_t *) buf;
+    while (n--)
+        *p++ = c;    
+    return buf;
 }
 
+/* memcpy copies n bytes from one location (src) to another (dst).
+ * It returns a pointer pointing at the start of destination memory buffer.
+ */
+void *memcpy(void *dst, const void *src, size_t n) {
+    uint8_t *d = (uint8_t *) dst;
+    const uint8_t *s = (const uint8_t *) src;
+    while (n--)
+        *d++ = *s++;
+    return dst;
+}
+
+/*########## STRINGS MANIPULATION FUNCTIONS ##########*/
+
+/* strcpy copies the string pointed by source (including the null character) to the destination. 
+ * It returns a pointer to destination string.
+ */
+char *strcpy(char *dst, const char *src) {
+    char *d = dst;
+    while (*src) 
+        *d++ = *src++;
+    *d = '\0';
+    return dst;
+}
+
+/* strcmp compares two strings character by character. 
+ * If the strings are equal, the function returns 0
+ */
+int strcmp(const char *s1, const char *s2) {
+    while (*s1 && *s2) {
+        if (*s1 != *s2)
+            break;
+        s1++;
+        s2++;
+    }
+    return *(unsigned char *)s1 - *(unsigned char *)s2;
+}
+
+/* printf allows to output formatted text to standard output stream.
+ * It supports the following format types:
+ * 'd': integer
+ * 's': string
+ * 'x': hexadecimal
+ */
 void printf(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -22,7 +66,7 @@ void printf(const char *fmt, ...) {
             fmt++;  // skip % character
             switch (*fmt) {
                 case '\0':
-                    print_debug("printf wrong formatting. A format type is expected after \'%\'");
+                    printf("invalid printf format string");
                     goto end;
 
                 case PRINTF_TYPE_INT: {// 'd'
@@ -61,11 +105,11 @@ void printf(const char *fmt, ...) {
                 }
 
                 case PRINTF_TYPE_HEX: { // 'x'
-                    /* Unsigned a 32 bit -> 1 cifra esadecimale da 4 bit
+                    /* Unsigned a 32 bit -> one 4 bit hexadecimal digit
                      * Example: 0x1234abcd
                      * value >> (i*4): 0x00000001
-                     * 0x00000001 & 0xf: tiene solo i 4 bit meno significativi -> 0x0001
-                     * "0123456789abcdef"[nibble]: nibble=1 -> viene stampato il carattere all'indice 1 
+                     * 0x00000001 & 0xf: only keeps 4 less significative bits -> 0x0001
+                     * "0123456789abcdef"[nibble]: nibble=1 -> prints char at index 1 
                      */
                     unsigned value = va_arg(ap, unsigned);
                     for (int i=7; i>=0; i--) {
@@ -76,7 +120,7 @@ void printf(const char *fmt, ...) {
                 }
 
                 default:
-                    print_debug("invalid format. Format type must be in (\'d\', \'s\', \'x\')");
+                    printf("format type must be in (\'d\', \'s\', \'x\')");
                     goto end;
             }
         } else {
