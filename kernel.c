@@ -7,6 +7,8 @@ typedef uint32_t size_t;
 extern char __bss[], __bss_end[], __stack_top[];
 extern char __free_ram[], __free_ram_end[];
 
+/* ############## CONSOLE PRINT SECTION ############## */
+
 /* sbi_call copies arguments into register following SBI standard registers use.
  * It calls SBI specific function (using fid and eid) using ecall.
  */
@@ -32,6 +34,8 @@ void put_char(char c) {
     // OpenSBI extension ID for console putchar is 0x01.
     sbi_call(c,0,0,0,0,0,0,1);
 }
+
+/* ############## TRAP HANDLING SECTION ############## */
 
 __attribute__((naked))
 __attribute__((aligned(4)))
@@ -111,6 +115,7 @@ void kernel_entry(void) {
     );
 }
 
+/* hadle_trap handles trap from processor reading */
 void handle_trap(struct trapframe *f) {
     uint32_t scause = READ_CSR(scause);
     uint32_t stval = READ_CSR(stval);
@@ -118,6 +123,8 @@ void handle_trap(struct trapframe *f) {
 
     PANIC("\nunexpected trap scause=%x, stval=%x, sepc=%x\n", scause, stval, user_pc);
 }
+
+/* ############## MEMORY ALLOCATION SECTION ############## */
 
 /* alloc_pages is a simple memory allocation algorithm.
  * Instead of allocating in bytes like malloc, it allocates in a larger unit called "pages". 
@@ -133,6 +140,75 @@ paddr_t alloc_pages(uint32_t n) {
     }
     memset((void *) paddr, 0, n * PAGE_SIZE);
     return paddr;
+}
+
+/* ############## PROCESSES SECTION ############## */
+
+// list of processes and their execution context
+struct process procs[MAX_PROCS];
+
+struct process *create_process(uint32_t pc) {
+    struct process *proc = NULL;
+    int i;
+    for (i=0; i<MAX_PROCS; i++) {
+        if (procs[i].status == PROC_UNUSED) {
+            proc = &procs[i];
+            break;
+        }
+    }
+
+    if (!proc)
+        PANIC("no free process slots");
+
+    // Stack callee-saved registers. These register values will be restored in
+    // the first context switch in switch_context.
+    uint32_t *sp = (uint32_t) &proc->stack[sizeof(proc->stack)];
+    for (int j=0; j < 12; j++) {
+        *--sp = 0;
+    }
+    *--sp = (uint32_t) pc;
+}
+
+/* switch_context switches execution context of processes.
+ * It saves callee-saved registers and load other process context registers.
+ */
+__attribute__((naked))
+void switch_context(uint32_t *prev_sp, uint32_t *next_sp) {
+    __asm__ __volatile__(
+        "addi sp, sp, -13 * 4\n", // move stack pointer up of 4 bytes for 13 registers
+        "sw ra, 0 * 4(sp)\n",
+        "sw s0, 0 * 4(sp)\n",
+        "sw s1, 1 * 4(sp)\n",
+        "sw s2, 2 * 4(sp)\n",
+        "sw s3, 3 * 4(sp)\n",
+        "sw s4, 4 * 4(sp)\n",
+        "sw s5, 5 * 4(sp)\n",
+        "sw s6, 6 * 4(sp)\n",
+        "sw s7, 7 * 4(sp)\n",
+        "sw s8, 8 * 4(sp)\n",
+        "sw s9, 9 * 4(sp)\n",
+        "sw s10, 10 * 4(sp)\n",
+        "sw s11, 11 * 4(sp)\n",
+
+        "sw sp, (a0)\n",
+        "lw sp, (a1)\n",
+
+        "lw ra, 0 * 4(sp)\n",
+        "lw s0, 0 * 4(sp)\n",
+        "lw s1, 1 * 4(sp)\n",
+        "lw s2, 2 * 4(sp)\n",
+        "lw s3, 3 * 4(sp)\n",
+        "lw s4, 4 * 4(sp)\n",
+        "lw s5, 5 * 4(sp)\n",
+        "lw s6, 6 * 4(sp)\n",
+        "lw s7, 7 * 4(sp)\n",
+        "lw s8, 8 * 4(sp)\n",
+        "lw s9, 9 * 4(sp)\n",
+        "lw s10, 10 * 4(sp)\n",
+        "lw s11, 11 * 4(sp)\n",
+        "addi sp, sp, 13 * 4\n",
+        "ret\n"
+    );
 }
 
 void kernel_main(void) {

@@ -8,6 +8,19 @@ struct sbiret {
     long value;
 };
 
+// Process section
+#define PROCS_MAX 8         // maximum number of processes
+
+#define PROC_UNUSED 0       // unused process controll structure
+#define PROC_RUNNABLE 1     // runnable process
+
+struct process {
+    int pid;                // process ID
+    int status;             // process status (unused or runnable)
+    vaddr_t sp;             // stack pointer (virtual address)
+    uint8_t stack[8192];    // kernel process stack
+};
+
 // Kernel panic macro
 #define PANIC(fmt, ...)                                                         \
     do {                                                                        \
@@ -16,6 +29,7 @@ struct sbiret {
     } while (0)
 
 // Kernel exceptions struct and macros
+// trap_frame represents all the 32 registers defined in RV32
 struct trap_frame {
     uint32_t ra;
     uint32_t gp;
