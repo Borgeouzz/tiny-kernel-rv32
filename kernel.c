@@ -162,11 +162,18 @@ struct process *create_process(uint32_t pc) {
 
     // Stack callee-saved registers. These register values will be restored in
     // the first context switch in switch_context.
-    uint32_t *sp = (uint32_t) &proc->stack[sizeof(proc->stack)];
+    uint32_t *sp = (uint32_t *) &proc->stack[sizeof(proc->stack)];
+    // with loop restore registers s11-s0
     for (int j=0; j < 12; j++) {
         *--sp = 0;
     }
-    *--sp = (uint32_t) pc;
+    *--sp = (uint32_t) pc; // ra
+
+    // initialize process fields
+    proc->pid = i+1;
+    proc->status = PROC_RUNNABLE;
+    proc->sp = (vaddr_t) sp;
+    return proc;
 }
 
 /* switch_context switches execution context of processes.
@@ -175,55 +182,84 @@ struct process *create_process(uint32_t pc) {
 __attribute__((naked))
 void switch_context(uint32_t *prev_sp, uint32_t *next_sp) {
     __asm__ __volatile__(
-        "addi sp, sp, -13 * 4\n", // move stack pointer up of 4 bytes for 13 registers
-        "sw ra, 0 * 4(sp)\n",
-        "sw s0, 0 * 4(sp)\n",
-        "sw s1, 1 * 4(sp)\n",
-        "sw s2, 2 * 4(sp)\n",
-        "sw s3, 3 * 4(sp)\n",
-        "sw s4, 4 * 4(sp)\n",
-        "sw s5, 5 * 4(sp)\n",
-        "sw s6, 6 * 4(sp)\n",
-        "sw s7, 7 * 4(sp)\n",
-        "sw s8, 8 * 4(sp)\n",
-        "sw s9, 9 * 4(sp)\n",
-        "sw s10, 10 * 4(sp)\n",
-        "sw s11, 11 * 4(sp)\n",
+        "addi sp, sp, -13 * 4\n" // move stack pointer up of 4 bytes for 13 registers
+        "sw ra, 0 * 4(sp)\n"
+        "sw s0, 0 * 4(sp)\n"
+        "sw s1, 1 * 4(sp)\n"
+        "sw s2, 2 * 4(sp)\n"
+        "sw s3, 3 * 4(sp)\n"
+        "sw s4, 4 * 4(sp)\n"
+        "sw s5, 5 * 4(sp)\n"
+        "sw s6, 6 * 4(sp)\n"
+        "sw s7, 7 * 4(sp)\n"
+        "sw s8, 8 * 4(sp)\n"
+        "sw s9, 9 * 4(sp)\n"
+        "sw s10, 10 * 4(sp)\n"
+        "sw s11, 11 * 4(sp)\n"
 
-        "sw sp, (a0)\n",
-        "lw sp, (a1)\n",
+        "sw sp, (a0)\n"
+        "lw sp, (a1)\n"
 
-        "lw ra, 0 * 4(sp)\n",
-        "lw s0, 0 * 4(sp)\n",
-        "lw s1, 1 * 4(sp)\n",
-        "lw s2, 2 * 4(sp)\n",
-        "lw s3, 3 * 4(sp)\n",
-        "lw s4, 4 * 4(sp)\n",
-        "lw s5, 5 * 4(sp)\n",
-        "lw s6, 6 * 4(sp)\n",
-        "lw s7, 7 * 4(sp)\n",
-        "lw s8, 8 * 4(sp)\n",
-        "lw s9, 9 * 4(sp)\n",
-        "lw s10, 10 * 4(sp)\n",
-        "lw s11, 11 * 4(sp)\n",
-        "addi sp, sp, 13 * 4\n",
+        "lw ra, 0 * 4(sp)\n"
+        "lw s0, 0 * 4(sp)\n"
+        "lw s1, 1 * 4(sp)\n"
+        "lw s2, 2 * 4(sp)\n"
+        "lw s3, 3 * 4(sp)\n"
+        "lw s4, 4 * 4(sp)\n"
+        "lw s5, 5 * 4(sp)\n"
+        "lw s6, 6 * 4(sp)\n"
+        "lw s7, 7 * 4(sp)\n"
+        "lw s8, 8 * 4(sp)\n"
+        "lw s9, 9 * 4(sp)\n"
+        "lw s10, 10 * 4(sp)\n"
+        "lw s11, 11 * 4(sp)\n"
+        "addi sp, sp, 13 * 4\n"
         "ret\n"
     );
+}
+
+void delay(void) {
+    for (int i = 0; i < 30000000; i++)
+        __asm__ __volatile__("nop"); // do nothing
+}
+
+struct process *proc_a;
+struct process *proc_b;
+
+void proc_a_entry(void) {
+    printf("\nstarting process: ");
+    while (1) {
+        put_char('A');
+        switch_context(&proc_a->sp, &proc_b->sp);
+        delay();
+    }
+}
+
+void proc_b_entry(void) {
+    printf("\nstarting process: ");
+    while (1) {
+        put_char('B');
+        switch_context(&proc_b->sp, &proc_a->sp);
+        delay();
+    }
 }
 
 void kernel_main(void) {
     printf("\nbooting kernel...");
     printf("\nclearing bss section...");
     memset(__bss, 0, (size_t) __bss_end - (size_t) __bss);
+
+    WRITE_CSR(stvec, (uint32_t) kernel_entry);
     
     printf("\ntesting memory allocation");
     paddr_t paddr0 = alloc_pages(2);
     paddr_t paddr1 = alloc_pages(1);
     printf("\nalloc_pages test: paddr0=%x -- paddr1=%x", paddr0, paddr1);
 
-    for (;;) {
-        __asm__ __volatile__("wfi");
-    }
+    printf("\ntesting processes context switch");
+    proc_a = create_process((uint32_t) proc_a_entry);
+    proc_b = create_process((uint32_t) proc_b_entry);
+    proc_a_entry();
 }
 
 __attribute__((section(".text.boot")))

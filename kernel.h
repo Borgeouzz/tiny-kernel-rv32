@@ -9,7 +9,7 @@ struct sbiret {
 };
 
 // Process section
-#define PROCS_MAX 8         // maximum number of processes
+#define MAX_PROCS 8         // maximum number of processes
 
 #define PROC_UNUSED 0       // unused process controll structure
 #define PROC_RUNNABLE 1     // runnable process
